@@ -1,6 +1,6 @@
 extern crate rand;
 extern crate raylib;
-use rust_embed::RustEmbed;
+
 use rand::Rng;
 use raylib::prelude::*;
 
@@ -140,9 +140,6 @@ fn main() {
     
     enemies.push(Enemy::new(800.0, 360.0, 40,40, 300.0));
     
-    #[derive(RustEmbed)]
-    #[folder = "pics/"] 
-    struct Asset;
     let background = rl.load_texture(&thread, "./pics/back.png").unwrap(); 
 
     
