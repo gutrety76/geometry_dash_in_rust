@@ -13,7 +13,8 @@ struct Player {
     moving_down: bool,
     time: f32,
     speed: f32,
-    dead: bool
+    dead: bool,
+    rotation_angle: f32
 }
 
 
@@ -58,27 +59,43 @@ impl Player {
             moving_down: false,
             time: 0.0,
             dead: false,
-            speed: 300.0
+            speed: 300.0,
+            rotation_angle: 0.0
         }
     }
-    fn draw(&self, d: &mut raylib::core::drawing::RaylibDrawHandle) {
-        d.draw_rectangle(
-            (self.x - self.width as f32 / 2.0) as i32,
-            (self.y - self.height as f32 / 2.0) as i32, 
-            self.width, 
-            self.height, 
-            Color::RED
-        );
-        d.draw_circle(
-            self.x as i32,
-            self.y as i32,
-            4.0, 
-            Color::GREEN
-        );
+    fn draw(&self, d: &mut raylib::core::drawing::RaylibDrawHandle, texture: &Texture2D) {
+         // Specify your rotation angle here
+
+        let source_rec = Rectangle::new(0.0, 0.0, texture.width() as f32, texture.height() as f32);
+        let dest_rec = Vector2::new(self.x, self.y);
+        let origin = Vector2::new(texture.width() as f32 / 2.0, texture.height() as f32 / 2.0); // rotate around the center of the texture
+
+    d.draw_texture_pro(
+        &texture,
+        source_rec,
+        Rectangle::new(dest_rec.x - self.width as f32 / 2.0, (dest_rec.y - self.height as f32 / 2.0) + 20.0, self.width as f32, self.height as f32),
+        origin,
+        self.rotation_angle,
+        Color::WHITE,
+    );
+        // d.draw_rectangle(
+        //     (self.x - self.width as f32 / 2.0) as i32,
+        //     (self.y - self.height as f32 / 2.0) as i32, 
+        //     self.width, 
+        //     self.height, 
+        //     Color::RED
+        // );
+        // d.draw_circle(
+        //     self.x as i32,
+        //     self.y as i32,
+        //     25.0, 
+        //     Color::GREEN
+        // );
     }
     fn start_moving_up(&mut self) {
         self.moving_up = true;
         self.time = 0.0;
+        self.rotation_angle = 0.0;
     }
     fn stop_moving_up(&mut self) {
         self.moving_up = false;
@@ -89,6 +106,8 @@ impl Player {
         if self.moving_up && !self.moving_down {
             self.y -= self.speed * dt;
             self.time += dt;
+            
+            self.rotation_angle += 1000.0 * dt;
         }
         if self.time >= 0.7 && !self.moving_down {
             self.moving_up = false;
@@ -98,6 +117,7 @@ impl Player {
         }
         if self.moving_down {
             self.y += self.speed * dt;
+            self.rotation_angle -= 1000.0 * dt;
             
         }
         if self.y >= 360.0 {
@@ -128,26 +148,33 @@ fn main() {
         .title("Shifting Shadows")
         .build();
     
-    rl.set_target_fps(60);
+    
     
     let mut rng = rand::thread_rng();
     
-    let mut player = Player::new(60.0, 360.0, 40, 40);
+    let mut player = Player::new(60.0, 360.0, 39, 39);
     
     let mut enemies: Vec<Enemy> = vec![];
     
     let mut timer = 0.0;
-    
+    let mut score = 0;
     enemies.push(Enemy::new(800.0, 360.0, 40,40, 300.0));
     
-    let background = rl.load_texture(&thread, "./pics/back.png").unwrap(); 
-
     
+    let background = rl.load_texture(&thread, "./pics/back.png").unwrap(); 
+    let playerTexture = rl.load_texture(&thread, "./pics/player.png").unwrap(); 
+    let fireBallTexture = rl.load_texture(&thread, "./pics/fireball.png").unwrap(); 
+    
+    
+
+
+    let width = rl.get_screen_width();
+    let height = rl.get_screen_height();
     
     while !rl.window_should_close() {
         let dt = rl.get_frame_time();
         timer += dt;
-        if timer >= 1.0 {
+        if timer >= 0.5 && !player.dead {
             let value: f32 = rng.gen_range(240.0..360.0);
             enemies.push(Enemy::new(800.0, value, 40,40, 300.0));
             timer = 0.0;
@@ -170,6 +197,7 @@ fn main() {
         if rl.is_key_pressed(KeyboardKey::KEY_R){
             player.dead = false;
             enemies.clear();
+            score = 0;
         }
 
             
@@ -180,14 +208,27 @@ fn main() {
 
         }
 
-        enemies.retain(|enemy| enemy.x >= 0.0);
+        for i in (0..enemies.len()).rev() {
+            if enemies[i].x < 0.0 {
+                enemies.remove(i);
+                score += 1;
+            }
+        }
 
         //check collision
-        for enemy in &enemies {
-            if (player.x - enemy.x).abs() < 10.0 as f32
-                && (player.y - enemy.y).abs() < 10.0 as f32
+        let mut to_remove = vec![];
+        for (i, enemy) in enemies.iter().enumerate() {
+            if (player.x - enemy.x).abs() < 25.0 as f32
+                && (player.y - enemy.y).abs() < 25.0 as f32
             {
+                to_remove.push(i);
                 player.dead = true;
+            }
+        }
+        if player.dead {
+            
+            if enemies.len() > 0 {
+                enemies.remove(0);
             }
         }
 
@@ -195,9 +236,10 @@ fn main() {
         let mut d = rl.begin_drawing(&thread);
         d.clear_background(Color::WHITE);
         d.draw_texture(&background, 0, 0, Color::WHITE);
+      
         d.draw_rectangle(0, 380, 800, 260, Color::BLACK);
-        if !player.dead { player.draw(&mut d); }
-        for i in 0..enemies.len() {
+        if !player.dead { player.draw(&mut d, &playerTexture); }
+        if !player.dead{for i in 0..enemies.len() {
             enemies[i].update(dt);
             d.draw_circle(
                 enemies[i].x as i32,
@@ -206,7 +248,13 @@ fn main() {
                 // enemies[i].width,
                 // enemies[i].height,
                 Color::GREEN);
+            
+        }}
+        let mut text = format!("Score: {}", score);
+        d.draw_text(&text, 10, 10, 48, Color::WHITE);
+        if (player.dead){
+            
+            d.draw_text("Press R to restart", width/8, height/2,48, Color::WHITE);
         }
-        
     }
 }
